@@ -46,6 +46,49 @@ index c5a3fe750e..a2fb977b04 100644
  set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
  set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
  set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+diff --git a/catboost/cuda/cuda_util/kernel/reduce.cu b/catboost/cuda/cuda_util/kernel/reduce.cu
+index 916c20cda3..6f6568619f 100644
+--- a/catboost/cuda/cuda_util/kernel/reduce.cu
++++ b/catboost/cuda/cuda_util/kernel/reduce.cu
+@@ -6,6 +6,12 @@
+ #include <cub/device/device_reduce.cuh>
+ #include <cub/device/device_segmented_reduce.cuh>
+ 
++#include <cuda/std/version>
++
++#if defined(_LIBCUDACXX_CUDA_API_VERSION) && _LIBCUDACXX_CUDA_API_VERSION >= 2008000
++#include <cuda/functional>
++#endif
++
+ #include <thrust/functional.h>
+ 
+ namespace NKernel {
+diff --git a/catboost/cuda/methods/kernel/score_calcers.cuh b/catboost/cuda/methods/kernel/score_calcers.cuh
+index a3a77dd7d6..a270c52a8f 100644
+--- a/catboost/cuda/methods/kernel/score_calcers.cuh
++++ b/catboost/cuda/methods/kernel/score_calcers.cuh
+@@ -52,7 +52,7 @@ namespace NKernel {
+ 
+         __forceinline__ __host__ __device__ void AddLeaf(double sum, double weight) {
+             double leafScore = (weight > 1e-20f ? (-sum * sum) / (weight + Lambda) : 0);
+-            Score += (MetaExponent == 1.0f || leafScore == 0.0f) ? leafScore : std::copysign(pow(std::abs(leafScore) / weight, MetaExponent), leafScore) * weight;
++            Score += (MetaExponent == 1.0f || leafScore == 0.0f) ? leafScore : std::copysign(pow(std::abs(leafScore) / weight, static_cast<double>(MetaExponent)), leafScore) * weight;
+         }
+ 
+         __forceinline__ __host__ __device__ double GetScore() {
+diff --git a/catboost/cuda/targets/kernel/dcg.cu b/catboost/cuda/targets/kernel/dcg.cu
+index 08f9f822d1..57682b7b0c 100644
+--- a/catboost/cuda/targets/kernel/dcg.cu
++++ b/catboost/cuda/targets/kernel/dcg.cu
+@@ -53,7 +53,7 @@ __global__ void MakeDcgExponentialDecaysImpl(
+ {
+     ui64 i = blockIdx.x * blockDim.x + threadIdx.x;
+     while (i < size) {
+-        decays[i] = pow(base, i - __ldg(offsets + i));
++        decays[i] = pow(static_cast<double>(base), static_cast<double>(i - __ldg(offsets + i)));
+         i += gridDim.x * blockDim.x;
+     }
+ }
 diff --git a/catboost/pytest/smoke_tests/classification_tutorial_cpu.py b/catboost/pytest/smoke_tests/classification_tutorial_cpu.py
 index 0d140f566c..3ff63efbf7 100644
 --- a/catboost/pytest/smoke_tests/classification_tutorial_cpu.py
